@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumios – Price Tracker | Suivi des prix en temps réel</title>
+  <meta name="description"
+    content="Suivez le prix du jeu Lumios sur tous les sites marchands. Comparez les prix avec et sans frais de livraison, et trouvez les meilleures offres en dessous de 40€." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-bg-glow"></div>
+    <div class="container">
+      <div class="header-inner">
+        <div class="header-logo">
+          <div class="logo-orb">
+            <span class="orb-dot"></span>
+          </div>
+          <div class="logo-text">
+            <span class="logo-title">LUMIOS</span>
+            <span class="logo-sub">Price Tracker</span>
+          </div>
+        </div>
+        <div class="header-meta">
+          <div class="last-update">
+            <span class="pulse-dot"></span>
+            Mis à jour le <span id="lastUpdateDate">—</span>
+          </div>
+          <button id="refreshBtn" class="btn-refresh" onclick="refreshData()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            Rafraîchir
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="badge-dot badge-dot--live"></span>
+          Tracking en direct
+        </div>
+        <h1 class="hero-title">
+          Suivi des prix<br />
+          <span class="gradient-text">Lumios le jeu</span>
+        </h1>
+        <p class="hero-desc">Comparaison automatique sur tous les sites français · Prix avec et sans livraison · Alertes
+          sous 40€</p>
+      </div>
+
+      <!-- SUMMARY CARDS -->
+      <div class="stats-row">
+        <div class="stat-card stat-card--best">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-info">
+            <span class="stat-label">Meilleur prix (livraison incluse)</span>
+            <span class="stat-value" id="bestPrice">—</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--avg">
+          <div class="stat-icon">📊</div>
+          <div class="stat-info">
+            <span class="stat-label">Prix moyen du marché</span>
+            <span class="stat-value" id="avgPrice">—</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--alert">
+          <div class="stat-icon">🔥</div>
+          <div class="stat-info">
+            <span class="stat-label">Offres sous 40€ livraison incluse</span>
+            <span class="stat-value" id="alertCount">—</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--sites">
+          <div class="stat-icon">🛒</div>
+          <div class="stat-info">
+            <span class="stat-label">Sites suivis</span>
+            <span class="stat-value" id="siteCount">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILTERS BAR -->
+  <div class="filters-bar">
+    <div class="container">
+      <div class="filters-inner">
+        <div class="filter-group">
+          <label class="filter-label">Afficher :</label>
+          <div class="filter-tabs">
+            <button class="filter-tab active" id="tab-all" onclick="setFilter('all')">Tous les sites</button>
+            <button class="filter-tab" id="tab-under40" onclick="setFilter('under40')">
+              🔥 Sous 40€
+              <span class="tab-badge" id="under40Count">0</span>
+            </button>
+            <button class="filter-tab" id="tab-free-shipping" onclick="setFilter('free')">🚚 Port offert</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Trier par :</label>
+          <select class="sort-select" id="sortSelect" onchange="sortTable()">
+            <option value="total-asc">Prix total ↑</option>
+            <option value="total-desc">Prix total ↓</option>
+            <option value="base-asc">Prix seul ↑</option>
+            <option value="name-asc">Site (A→Z)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN TABLE -->
+  <main class="main-content">
+    <div class="container">
+
+      <!-- ALERT BANNER -->
+      <div class="alert-banner" id="alertBanner" style="display:none;">
+        <div class="alert-banner-icon">⚡</div>
+        <div class="alert-banner-text">
+          <strong>Bad news : </strong> <span id="alertBannerText"></span> offre(s) disponible(s) sous 40€ frais de
+          livraison inclus !
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="price-table" id="priceTable">
+          <thead>
+            <tr>
+              <th class="col-site">Site marchand</th>
+              <th class="col-type">Type</th>
+              <th class="col-base">Prix produit</th>
+              <th class="col-shipping">Livraison</th>
+              <th class="col-total">Prix total</th>
+              <th class="col-badge">Statut</th>
+              <th class="col-action">Lien</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Filled by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- NOTE L'ANTRE DES JEUX -->
+      <div class="special-note" id="noteAntreTemps">
+        <div class="note-icon">⚠️</div>
+        <div class="note-content">
+          <strong>Note – L'Antre des Temps :</strong> Le prix affiché sur Google est de <strong>34,99€ + 7€ de
+            port</strong> (= 41,99€).
+          Cependant, le site propose le <strong>retrait en magasin GRATUIT</strong>, ce qui ramène le prix total à
+          seulement <strong>34,99€</strong>
+          — soit <strong>l'offre la moins chère du marché</strong> si vous avez un magasin proche de chez vous !
+        </div>
+      </div>
+
+      <!-- LEGEND -->
+      <div class="legend">
+        <div class="legend-item">
+          <span class="badge badge--hot">🔥 BEST DEAL</span>
+          <span>Prix total inférieur ou égal à 40€</span>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge--free">🚚 PORT OFFERT</span>
+          <span>Livraison gratuite (ou retrait magasin)</span>
+        </div>
+        <div class="legend-item">
+          <span class="badge badge--pickup">🏪 RETRAIT MAG.</span>
+          <span>Click & collect disponible</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-note">
+          <span class="footer-orb"></span>
+          Les prix sont mis à jour manuellement. Vérifiez toujours le prix final sur le site marchand avant l'achat.
+        </div>
+        <div class="footer-copy">© 2025 Lumios le jeu — Outil interne</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
