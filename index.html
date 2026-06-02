@@ -36,6 +36,14 @@
             <span class="pulse-dot"></span>
             Mis à jour le <span id="lastUpdateDate">—</span>
           </div>
+          <button id="addSiteBtn" class="btn-refresh" onclick="openAddModal()" style="margin-right: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Ajouter un site
+          </button>
           <button id="refreshBtn" class="btn-refresh" onclick="refreshData()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -112,7 +120,7 @@
               🔥 Sous 40€
               <span class="tab-badge" id="under40Count">0</span>
             </button>
-            <button class="filter-tab" id="tab-free-shipping" onclick="setFilter('free')">🚚 Port offert</button>
+            <button class="filter-tab" id="tab-free" onclick="setFilter('free')">🚚 Port offert</button>
           </div>
         </div>
         <div class="filter-group">
@@ -199,10 +207,63 @@
           <span class="footer-orb"></span>
           Les prix sont mis à jour manuellement. Vérifiez toujours le prix final sur le site marchand avant l'achat.
         </div>
-        <div class="footer-copy">© 2025 Lumios le jeu — Outil interne</div>
+        <div class="footer-copy">© 2026 Lumios le jeu — Outil interne</div>
       </div>
     </div>
   </footer>
+
+  <!-- MODAL AJOUT SITE -->
+  <div class="modal-overlay" id="addSiteModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Ajouter un nouveau marchand</h2>
+        <button class="modal-close" onclick="closeAddModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+          Entrez l'URL de la page produit de Lumios. L'outil vérifiera automatiquement s'il s'agit du bon produit et
+          extraira le prix en temps réel.
+        </p>
+
+        <div class="form-group">
+          <label class="filter-label">URL de la page du jeu</label>
+          <input type="url" id="newSiteUrl" class="modal-input" placeholder="https://www.boutique.com/lumios..."
+            autocomplete="off">
+        </div>
+
+        <div class="form-group" style="margin-top: 12px; display: flex; gap: 12px;">
+          <div style="flex: 1;">
+            <label class="filter-label">Frais de port standard (€)</label>
+            <input type="number" id="newSiteShipping" class="modal-input" placeholder="ex: 4.90" step="0.01" min="0">
+          </div>
+          <div style="flex: 1;">
+            <label class="filter-label">Port offert à partir de (€)</label>
+            <input type="number" id="newSiteFreeFrom" class="modal-input" placeholder="ex: 50" step="1" min="0">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="newSitePickup" checked>
+            <span>Retrait gratuit en magasin/boutique disponible</span>
+          </label>
+        </div>
+
+        <!-- ERROR BOX -->
+        <div id="modalErrorBox" class="modal-error" style="display: none;"></div>
+
+        <!-- LOADING SPINNER -->
+        <div id="modalLoading" class="modal-loading" style="display: none;">
+          <div class="spinner"></div>
+          <span>Analyse de la page en cours...</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeAddModal()">Annuler</button>
+        <button id="confirmAddBtn" class="btn-confirm" onclick="validateAndAddSite()">Valider et ajouter</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

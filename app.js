@@ -7,7 +7,7 @@
 // À mettre à jour manuellement ou via une API future
 // ─────────────────────────────────────
 const PRICE_DATA = {
-  lastUpdate: "2026-06-02",
+  lastUpdate: "2026-06-02T10:30:00",
   threshold: 40.00, // Seuil d'alerte en €
   stores: [
     {
@@ -107,11 +107,11 @@ const PRICE_DATA = {
       type: "specialist",
       basePrice: 39.90,
       shipping: {
-        standard: 5.90,
+        standard: 1.90,
         free_from: 50,
-        pickup: null,
-        pickupAvailable: false,
-        note: "Port offert dès 50€"
+        pickup: 0.00,
+        pickupAvailable: true,
+        note: "Relais 1,90€ / Port offert dès 50€ / Retrait gratuit"
       },
       url: "https://www.play-in.com/",
       promo: false,
@@ -125,11 +125,11 @@ const PRICE_DATA = {
       type: "general",
       basePrice: 39.99,
       shipping: {
-        standard: 4.99,
-        free_from: 49,
+        standard: null,
+        free_from: null,
         pickup: 0.00,
         pickupAvailable: true,
-        note: "Retrait magasin gratuit (Drive 1h)"
+        note: "Retrait magasin gratuit (Indisponible en livraison)"
       },
       url: "https://www.joueclub.fr/",
       promo: false,
@@ -213,13 +213,13 @@ const PRICE_DATA = {
       domain: "boutiquepoissondavril.com",
       emoji: "🐟",
       type: "specialist",
-      basePrice: 39.90,
+      basePrice: 40.20,
       shipping: {
         standard: 5.90,
-        free_from: 59,
-        pickup: null,
-        pickupAvailable: false,
-        note: "Port offert dès 59€"
+        free_from: 80,
+        pickup: 0.00,
+        pickupAvailable: true,
+        note: "Port offert dès 80€ / Retrait boutique"
       },
       url: "https://www.boutiquepoissondavril.com/",
       promo: false,
@@ -240,13 +240,22 @@ let computedStores = [];
 // ─────────────────────────────────────
 function computeStorePrices() {
   return PRICE_DATA.stores.map(store => {
-    const shippingCost = store.shipping.standard || 0;
+    const shippingCost = store.shipping.standard !== null && store.shipping.standard !== undefined ? store.shipping.standard : null;
     const pickupCost = store.shipping.pickupAvailable ? (store.shipping.pickup || 0) : null;
-    const totalDelivery = store.basePrice + shippingCost;
+    
+    const totalDelivery = shippingCost !== null ? store.basePrice + shippingCost : null;
     const totalPickup = pickupCost !== null ? store.basePrice + pickupCost : null;
-    const bestTotal = pickupCost !== null
-      ? Math.min(totalDelivery, totalPickup)
-      : totalDelivery;
+    
+    let bestTotal;
+    if (totalDelivery !== null && totalPickup !== null) {
+      bestTotal = Math.min(totalDelivery, totalPickup);
+    } else if (totalDelivery !== null) {
+      bestTotal = totalDelivery;
+    } else if (totalPickup !== null) {
+      bestTotal = totalPickup;
+    } else {
+      bestTotal = store.basePrice;
+    }
 
     return {
       ...store,
@@ -307,7 +316,9 @@ function renderRow(store, index) {
 
   // Shipping display
   let shippingDisplay = '';
-  if (store.shippingCost === 0) {
+  if (store.shippingCost === null) {
+    shippingDisplay = `<span class="amount no-shipping" style="color:var(--text-muted);font-size:12px;font-style:italic;">Pas de livraison</span>`;
+  } else if (store.shippingCost === 0) {
     shippingDisplay = `<span class="amount free">GRATUIT</span>`;
   } else {
     shippingDisplay = `<span class="amount paid">+${fmt(store.shippingCost)}</span>`;
@@ -316,7 +327,11 @@ function renderRow(store, index) {
   // Pickup display
   let pickupInfo = '';
   if (store.hasPickup) {
-    pickupInfo = `<br><span class="amount pickup">ou retrait gratuit 🏪</span>`;
+    if (store.shippingCost === null) {
+      pickupInfo = `<br><span class="amount pickup">Retrait gratuit 🏪</span>`;
+    } else {
+      pickupInfo = `<br><span class="amount pickup">ou retrait gratuit 🏪</span>`;
+    }
   }
 
   // Total color class
@@ -459,9 +474,9 @@ function updateStats() {
 
   // Last update
   const d = new Date(PRICE_DATA.lastUpdate);
-  document.getElementById('lastUpdateDate').textContent = d.toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'long', year: 'numeric'
-  });
+  const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+  document.getElementById('lastUpdateDate').textContent = `${dateStr} à ${timeStr}`;
 }
 
 // ─────────────────────────────────────
@@ -482,14 +497,57 @@ function sortTable() {
 }
 
 // ─────────────────────────────────────
-// REFRESH (SIMULATION)
+// SCRAPING & PARSING
 // ─────────────────────────────────────
-function refreshData() {
+function parsePrice(html) {
+  const regex = /(\d{1,3})[.,](\d{2})\s*€/g;
+  let match;
+  let prices = [];
+  while ((match = regex.exec(html)) !== null) {
+    const val = parseFloat(match[1] + '.' + match[2]);
+    if (val > 10 && val < 80) { // Filtre pour ignorer les prix aberrants
+      prices.push(val);
+    }
+  }
+  
+  if (prices.length > 0) {
+    const freq = {};
+    let maxFreq = 0;
+    let mostFreqPrice = prices[0];
+    for (const p of prices) {
+      freq[p] = (freq[p] || 0) + 1;
+      if (freq[p] > maxFreq) {
+        maxFreq = freq[p];
+        mostFreqPrice = p;
+      }
+    }
+    return mostFreqPrice;
+  }
+  return null;
+}
+
+async function fetchAndParsePrice(url) {
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    const data = await response.json();
+    return parsePrice(data.contents);
+  } catch(e) {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────
+// REFRESH (AUTOMATISÉ)
+// ─────────────────────────────────────
+async function refreshData() {
   const btn = document.getElementById('refreshBtn');
+  if (btn.classList.contains('loading')) return;
+
   btn.style.opacity = '0.6';
   btn.style.pointerEvents = 'none';
+  btn.classList.add('loading');
 
-  // Simuler un chargement
   const tbody = document.getElementById('tableBody');
   const rows = tbody.querySelectorAll('tr');
   rows.forEach(row => {
@@ -497,13 +555,165 @@ function refreshData() {
     row.style.transition = 'opacity 0.3s';
   });
 
-  setTimeout(() => {
-    // Dans une vraie app, on ferait un fetch() ici
-    rows.forEach(row => { row.style.opacity = '1'; });
-    btn.style.opacity = '1';
-    btn.style.pointerEvents = 'auto';
-    showToast('✅ Données à jour !');
-  }, 1200);
+  showToast('🔄 Scraping des prix en cours...');
+
+  let livePrices = {};
+  try {
+    livePrices = JSON.parse(localStorage.getItem('lumios_live_prices') || '{}');
+  } catch(e) {}
+  
+  const promises = PRICE_DATA.stores.map(async store => {
+    try {
+      const price = await fetchAndParsePrice(store.url);
+      if (price !== null) {
+        store.basePrice = price;
+        livePrices[store.id] = price;
+      }
+    } catch(e) {
+      console.error("Erreur scraping " + store.id, e);
+    }
+  });
+
+  await Promise.allSettled(promises);
+
+  try {
+    localStorage.setItem('lumios_live_prices', JSON.stringify(livePrices));
+  } catch(e) {}
+  
+  const now = new Date();
+  PRICE_DATA.lastUpdate = now.toISOString();
+
+  computedStores = computeStorePrices();
+  updateStats();
+  renderTable();
+
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = 'auto';
+  btn.classList.remove('loading');
+  showToast('✅ Tous les prix sont à jour !');
+}
+
+// ─────────────────────────────────────
+// MODAL AJOUT MANUEL
+// ─────────────────────────────────────
+function openAddModal() {
+  document.getElementById('addSiteModal').classList.add('active');
+  document.getElementById('modalErrorBox').style.display = 'none';
+  document.getElementById('modalLoading').style.display = 'none';
+  document.getElementById('newSiteUrl').value = '';
+}
+
+function closeAddModal() {
+  document.getElementById('addSiteModal').classList.remove('active');
+}
+
+async function validateAndAddSite() {
+  const urlInput = document.getElementById('newSiteUrl').value.trim();
+  const errorBox = document.getElementById('modalErrorBox');
+  const loadingBox = document.getElementById('modalLoading');
+  const confirmBtn = document.getElementById('confirmAddBtn');
+
+  errorBox.style.display = 'none';
+
+  if (!urlInput) {
+    errorBox.textContent = 'Veuillez entrer une URL valide.';
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  let domain = '';
+  try {
+    const urlObj = new URL(urlInput);
+    domain = urlObj.hostname.replace('www.', '');
+  } catch(e) {
+    errorBox.textContent = 'URL invalide. Ex: https://www.boutique.com/...';
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  if (PRICE_DATA.stores.some(s => s.domain === domain)) {
+    errorBox.textContent = 'Ce site est déjà dans la liste !';
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  loadingBox.style.display = 'flex';
+  confirmBtn.disabled = true;
+
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlInput)}`;
+    const response = await fetch(proxyUrl);
+    const data = await response.json();
+    const html = data.contents;
+
+    if (!html) throw new Error("Impossible de lire la page");
+
+    const htmlLower = html.toLowerCase();
+    if (!htmlLower.includes('lumios')) {
+      errorBox.textContent = 'Le mot "Lumios" n\'a pas été trouvé sur cette page. Êtes-vous sûr que c\'est le bon article ?';
+      errorBox.style.display = 'block';
+      loadingBox.style.display = 'none';
+      confirmBtn.disabled = false;
+      return;
+    }
+
+    const price = parsePrice(html);
+    if (price === null) {
+      errorBox.textContent = 'Impossible de détecter un prix sur cette page automatiquement.';
+      errorBox.style.display = 'block';
+      loadingBox.style.display = 'none';
+      confirmBtn.disabled = false;
+      return;
+    }
+
+    const shippingStr = document.getElementById('newSiteShipping').value;
+    const freeFromStr = document.getElementById('newSiteFreeFrom').value;
+    const hasPickup = document.getElementById('newSitePickup').checked;
+
+    const shipping = parseFloat(shippingStr) || 0;
+    const freeFrom = parseFloat(freeFromStr) || null;
+
+    const newStore = {
+      id: domain.replace(/[^a-z0-9]/g, ''),
+      name: domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0],
+      domain: domain,
+      emoji: "🛒",
+      type: "specialist",
+      basePrice: price,
+      shipping: {
+        standard: shipping,
+        free_from: freeFrom,
+        pickup: hasPickup ? 0.00 : null,
+        pickupAvailable: hasPickup,
+        note: `Ajouté manuellement`
+      },
+      url: urlInput,
+      promo: false,
+      promoNote: null
+    };
+
+    PRICE_DATA.stores.push(newStore);
+    
+    try {
+      const savedStores = JSON.parse(localStorage.getItem('lumios_custom_stores') || '[]');
+      savedStores.push(newStore);
+      localStorage.setItem('lumios_custom_stores', JSON.stringify(savedStores));
+    } catch(e) {}
+
+    computedStores = computeStorePrices();
+    updateStats();
+    renderTable();
+
+    closeAddModal();
+    showToast(`✅ ${newStore.name} ajouté avec succès !`);
+
+  } catch(e) {
+    errorBox.textContent = 'Erreur lors de l\'analyse du lien. Le site bloque peut-être notre proxy.';
+    errorBox.style.display = 'block';
+  }
+
+  loadingBox.style.display = 'none';
+  confirmBtn.disabled = false;
 }
 
 // ─────────────────────────────────────
@@ -534,7 +744,7 @@ function showToast(msg) {
   `;
 
   const style = document.createElement('style');
-  style.textContent = `@keyframes slideUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }`;
+  style.textContent = '@keyframes slideUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }';
   document.head.appendChild(style);
   document.body.appendChild(toast);
 
@@ -549,6 +759,34 @@ function showToast(msg) {
 // INIT
 // ─────────────────────────────────────
 function init() {
+  try {
+    const savedStores = localStorage.getItem('lumios_custom_stores');
+    if (savedStores) {
+      try {
+        const parsed = JSON.parse(savedStores);
+        parsed.forEach(s => {
+          if (!PRICE_DATA.stores.find(ext => ext.id === s.id)) {
+            PRICE_DATA.stores.push(s);
+          }
+        });
+      } catch(e) {}
+    }
+    
+    const savedPrices = localStorage.getItem('lumios_live_prices');
+    if (savedPrices) {
+      try {
+        const parsedPrices = JSON.parse(savedPrices);
+        PRICE_DATA.stores.forEach(s => {
+          if (parsedPrices[s.id] !== undefined) {
+            s.basePrice = parsedPrices[s.id];
+          }
+        });
+      } catch(e) {}
+    }
+  } catch(e) {
+    console.warn("Accès au localStorage bloqué (normal si ouvert via un fichier local double-cliqué)", e);
+  }
+
   computedStores = computeStorePrices();
   updateStats();
   renderTable();
